@@ -379,10 +379,10 @@ namespace freETarget {
             }
         }
         private bool ConnectToInterface() {
-            string interfaceIPAddress = Properties.Settings.Default.targetIPAddress;
+            string interfaceIPAddress = Properties.Settings.Default.targetIPAddress.ToString().Trim();
             tcpclnt = new TcpClient();
             try {
-                tcpclnt.Connect(interfaceIPAddress, 21);
+                tcpclnt.Connect(interfaceIPAddress, 1090);
                 try { stm = tcpclnt.GetStream(); } catch (Exception er) { MessageBox.Show("Error..... " + er.StackTrace); }
 
                 return true;
@@ -1355,11 +1355,19 @@ namespace freETarget {
             if (Settings.Default.useWiFi) {
                 //                stm.Close();
                 //tcpclnt.Close();
-                tcpclnt.GetStream().Close();
-                stm.Close();
-                stm = null;
+                if (tcpclnt.Connected)
+                {
+                    tcpclnt.GetStream().Close();
+                }
+                if (stm != null)
+                {
+                    stm.Close();
+                    stm = null;
+                }
                 tcpclnt.Close();
-            } else {
+
+            }
+            else {
                 try {
                     serialPort.Close();
                 } catch (IOException) {
