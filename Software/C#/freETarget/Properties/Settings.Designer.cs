@@ -514,5 +514,29 @@ namespace freETarget.Properties {
                 this["ZOffset"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool useWiFi {
+            get {
+                return ((bool)(this["useWiFi"]));
+            }
+            set {
+                this["useWiFi"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("192.168.4.1")]
+        public string targetIPAddress {
+            get {
+                return ((string)(this["targetIPAddress"]));
+            }
+            set {
+                this["targetIPAddress"] = value;
+            }
+        }
     }
 }

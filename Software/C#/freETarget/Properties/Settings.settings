@@ -125,5 +125,11 @@
     <Setting Name="ZOffset" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>
+    <Setting Name="useWiFi" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="targetIPAddress" Type="System.String" Scope="User">
+      <Value Profile="(Default)">192.168.4.1</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

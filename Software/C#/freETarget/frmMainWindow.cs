@@ -19,6 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
+using System.Net.Sockets;
 
 namespace freETarget {
     public partial class frmMainWindow : Form {
@@ -71,8 +72,8 @@ namespace freETarget {
 
         private bool gridSeriesSelected = false;
 
-
-
+        internal static TcpClient tcpclnt;
+        internal static NetworkStream stm;
 
         public frmMainWindow() {
             InitializeComponent();
@@ -146,7 +147,7 @@ namespace freETarget {
             if (!Directory.Exists(logDirectory)) {
                 try {
                     Directory.CreateDirectory(logDirectory);
-                }catch(Exception ex) {
+                } catch (Exception ex) {
                     Console.WriteLine(ex.Message);
 
                     //if there is no write permission at exe location, write log in C:\Users\<user>\AppData\Roaming\freETarget\log
@@ -161,7 +162,7 @@ namespace freETarget {
                 try {
                     log = File.Create(logDirectory + logfilename);
                     logFile = logDirectory + logfilename;
-                } catch(Exception ex) {
+                } catch (Exception ex) {
                     Console.WriteLine(ex.Message);
                     logFile = null;
                 } finally {
@@ -212,7 +213,7 @@ namespace freETarget {
             Event ev = eventManager.findEventByName(freETarget.Properties.Settings.Default.defaultTarget.Trim());
 
             if (ev == null) {
-                MessageBox.Show("Default event is not available: " + Settings.Default.defaultTarget.Trim(),"Configuration error",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                MessageBox.Show("Default event is not available: " + Settings.Default.defaultTarget.Trim(), "Configuration error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 //Application.Exit();
                 return;
             }
@@ -223,7 +224,7 @@ namespace freETarget {
                 }
             }
 
-            initNewSession();  
+            initNewSession();
         }
 
         private void initBreakdownChart() {
@@ -295,7 +296,7 @@ namespace freETarget {
                     //parse json message. might be a shot data or a test message
                     Shot shot = parseJson(message);
 
-                    if (shot!=null && shot.count >= 0) {
+                    if (shot != null && shot.count >= 0) {
                         if (shot.miss == true) {
                             if (Settings.Default.ignoreMiss == true) {
                                 //do nothing. ignore shot
@@ -323,7 +324,7 @@ namespace freETarget {
 
                             serialPort_DataReceived(sender, e); //call the event again to parse the remains. maybe there is another full message in there
                         }
-                        
+
                     } else {
                         //some other non-shot message from target. ignore ..for now (it will be displayed in the arduino window
                     }
@@ -334,24 +335,36 @@ namespace freETarget {
 
         private void btnConnect_Click(object sender, EventArgs e) {
             if (currentStatus == Status.NOT_CONNECTED) {
+                if (!Settings.Default.useWiFi) {
+                    if (Properties.Settings.Default.portName == null || Properties.Settings.Default.portName.Trim() == "") {
+                        MessageBox.Show("No COM port selected. Please go to the Settings dialog and select a port.", "Cannot connect", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                        return;
+                    }
 
-                if (Properties.Settings.Default.portName == null || Properties.Settings.Default.portName.Trim() == "") {
-                    MessageBox.Show("No COM port selected. Please go to the Settings dialog and select a port.", "Cannot connect", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                    return;
+                    serialPort.PortName = Properties.Settings.Default.portName;
+                    serialPort.BaudRate = Properties.Settings.Default.baudRate;
+                    serialPort.DataBits = 8;
+                    serialPort.DtrEnable = true;
+
                 }
 
-                serialPort.PortName = Properties.Settings.Default.portName;
-                serialPort.BaudRate = Properties.Settings.Default.baudRate;
-                serialPort.DataBits = 8;
-                serialPort.DtrEnable = true;
-
-
-
                 try {
+                    if (Settings.Default.useWiFi) {
+                        if (ConnectToInterface()) {
+                            if (!tcpclnt.Connected) {
+                                try { stm = tcpclnt.GetStream(); } catch (Exception er) {
+                                    MessageBox.Show("Error..... " + er.StackTrace);
+                                }
+                            }
+                            currentStatus = Status.CONNECTED;
+                            getShotTimer.Enabled = true;
+                        }
+                    } else {
+                        //open port. the target (arduino) will send a text "freETarget VX.X" on connect. 
+                        //software will wait for this text to confirm succesfull connection
+                        serialPort.Open();
+                    }
 
-                    //open port. the target (arduino) will send a text "freETarget VX.X" on connect. 
-                    //software will wait for this text to confirm succesfull connection
-                    serialPort.Open();
                     currentStatus = Status.CONECTING;
                     statusText.Text = "Connecting...";
                     btnConnect.Text = "Cancel";
@@ -359,14 +372,45 @@ namespace freETarget {
                 } catch (Exception ex) {
                     statusText.Text = "Error opening serial port: " + ex.Message;
                 }
-
             } else {
                 if (!clearShots()) {
                     disconnect();
                 }
             }
+        }
+        private bool ConnectToInterface() {
+            string interfaceIPAddress = Properties.Settings.Default.targetIPAddress;
+            tcpclnt = new TcpClient();
+            try {
+                tcpclnt.Connect(interfaceIPAddress, 21);
+                try { stm = tcpclnt.GetStream(); } catch (Exception er) { MessageBox.Show("Error..... " + er.StackTrace); }
 
+                return true;
+            } catch (Exception ey) {
+                MessageBox.Show("Target not found at " + interfaceIPAddress);
+            }
+            return false;
+        }
 
+        /**
+         * received connection text from target. connection established
+         */
+
+        private void SendWifiData(string outMsg) {
+            byte[] outBuffer = new byte[outMsg.Length];
+            stm.Write(Encoding.UTF8.GetBytes(outMsg), 0, outMsg.Length);
+            stm.Flush();
+            Console.WriteLine(outMsg);
+        }
+
+        public void SendDataToTarget(string outMsg) {
+            if (Settings.Default.useWiFi) {
+                byte[] outBuffer = new byte[outMsg.Length];
+                stm.Write(Encoding.UTF8.GetBytes(outMsg), 0, outMsg.Length);
+                stm.Flush();
+            } else {
+                serialPort.Write(outMsg);
+            }
         }
 
         /**
@@ -407,12 +451,12 @@ namespace freETarget {
 
             sb.Append("\"ECHO\":9 }");
 
-            serialPort.Write(sb.ToString());
+            SendDataToTarget(sb.ToString());
             Console.WriteLine(sb.ToString());
 
 
             Thread.Sleep(500);
-            serialPort.Write("{\"VERSION\":7}");
+            SendDataToTarget("{\"VERSION\":7}");
             Thread.Sleep(100);
 
 
@@ -442,7 +486,7 @@ namespace freETarget {
 
             initNewSession();
             targetRefresh();
-            
+
         }
 
         //output messages
@@ -486,12 +530,12 @@ namespace freETarget {
                 drawArrow(shot);
 
                 //write score to listview
-                ListViewItem item = new ListViewItem(new string[] { "" }, (shot.index+1).ToString());
+                ListViewItem item = new ListViewItem(new string[] { "" }, (shot.index + 1).ToString());
                 item.UseItemStyleForSubItems = false;
-                ListViewItem.ListViewSubItem countItem = item.SubItems.Add((shot.index+1).ToString());
-                countItem.Font = new Font("MS Sans Serif", 7f, FontStyle.Italic|FontStyle.Bold);
+                ListViewItem.ListViewSubItem countItem = item.SubItems.Add((shot.index + 1).ToString());
+                countItem.Font = new Font("MS Sans Serif", 7f, FontStyle.Italic | FontStyle.Bold);
                 ListViewItem.ListViewSubItem scoreItem = item.SubItems.Add(shot.score.ToString());
-                scoreItem.Font = new Font("MS Sans Serif", 9.75f,  FontStyle.Bold);
+                scoreItem.Font = new Font("MS Sans Serif", 9.75f, FontStyle.Bold);
                 ListViewItem.ListViewSubItem decimalItem = item.SubItems.Add(shot.decimalScore.ToString(CultureInfo.InvariantCulture) + inner);
                 decimalItem.Font = new Font("MS Sans Serif", 9.75f, FontStyle.Bold);
 
@@ -589,7 +633,7 @@ namespace freETarget {
                 StringFormat format = new StringFormat();
                 format.LineAlignment = StringAlignment.Center;
                 format.Alignment = StringAlignment.Center;
-                g.DrawString("M", f, br, imgArrow.Width /2 , imgArrow.Height /2 , format);
+                g.DrawString("M", f, br, imgArrow.Width / 2, imgArrow.Height / 2, format);
             } else {
                 if (shot.decimalScore < 10.9m) {
                     RectangleF range = new RectangleF(margin, margin, imgArrow.Width - margin * 3, imgArrow.Height - margin * 3);
@@ -621,7 +665,7 @@ namespace freETarget {
 
             //save drawn image (arrow) to imagelist for listview column
             try {
-                imgListDirections.Images.Add((shot.index+1).ToString(), imgArrow.Image);
+                imgListDirections.Images.Add((shot.index + 1).ToString(), imgArrow.Image);
             } catch (Exception ex) {
                 Console.WriteLine("Error adding image to list " + ex.Message);
             }
@@ -629,7 +673,7 @@ namespace freETarget {
             Thread.Sleep(100);
         }
 
-  
+
         private decimal getScaledDimension(decimal input) {
             decimal ret = 100 * input / Settings.Default.targetDistance;
             ret = decimal.Round(ret, 9, MidpointRounding.AwayFromZero);
@@ -647,7 +691,7 @@ namespace freETarget {
             string[] t2 = json.Split(',');
 
             if (t2[0].Contains("shot")) {
-                Shot ret = new Shot(calibrationX,calibrationY, calibrationAngle);
+                Shot ret = new Shot(calibrationX, calibrationY, calibrationAngle);
                 try {
                     foreach (string t3 in t2) {
                         string[] t4 = t3.Split(':');
@@ -663,11 +707,11 @@ namespace freETarget {
                             ret.angle = decimal.Parse(t4[1], CultureInfo.InvariantCulture);
                         } else if (t4[0].Trim() == "\"miss\"") {
                             int mix = int.Parse(t4[1].Trim(), CultureInfo.InvariantCulture);
-                            if(mix == 1) {
+                            if (mix == 1) {
                                 //miss reported by the target
                                 ret.miss = true;
                             }
-                            
+
                         }
                     }
                 } catch (FormatException ex) {
@@ -692,7 +736,7 @@ namespace freETarget {
                 displayMessage("Bad shot reported by the target: " + json, false);
                 return null;
             } else {
-                return null; 
+                return null;
             }
 
 
@@ -727,7 +771,7 @@ namespace freETarget {
                 Properties.Settings.Default.ignoreMiss = settingsFrom.chkMiss.Checked;
                 Properties.Settings.Default.LEDbright = settingsFrom.trkLEDbright.Value;
                 Properties.Settings.Default.targetName = settingsFrom.cmbName.SelectedIndex;
-                
+
 
                 if (Properties.Settings.Default.targetDistance != 100) {
                     btnConfig.BackColor = Properties.Settings.Default.targetColor;
@@ -766,7 +810,8 @@ namespace freETarget {
                 Properties.Settings.Default.PaperTime = int.Parse(settingsFrom.txtPaperTime.Text);
                 Properties.Settings.Default.StepCount = int.Parse(settingsFrom.txtSteps.Text);
                 Properties.Settings.Default.StepTime = int.Parse(settingsFrom.txtStepTime.Text);
-
+                Properties.Settings.Default.useWiFi = settingsFrom.wiFiRadioButton.Checked;
+                Properties.Settings.Default.targetIPAddress = settingsFrom.ipAddressTextBox.Text;
                 Properties.Settings.Default.Save();
 
                 List<Event> activeEvents = new List<Event>();
@@ -811,10 +856,10 @@ namespace freETarget {
         }
 
         private void initNewSession() {
-            if (currentSession!=null && currentSession.Shots.Count > 0) {
+            if (currentSession != null && currentSession.Shots.Count > 0) {
                 storage.storeSession(currentSession, true);
                 displayMessage("Session saved", true);
-                
+
             }
 
             Event ev = eventManager.findEventByName(tcSessionType.SelectedTab.Text.Trim());
@@ -886,7 +931,7 @@ namespace freETarget {
                     storage.storeSession(currentSession, true);
                     displayMessage("Session saved", true);
 
-                } else if(result == DialogResult.Cancel) {
+                } else if (result == DialogResult.Cancel) {
                     return true;
                 }
             }
@@ -940,13 +985,13 @@ namespace freETarget {
         }
 
         //computes the average radius of all the shots
-        private void calculateMeanRadius( out decimal rbar, out decimal xbar, out decimal ybar, List<Shot> shots) {
+        private void calculateMeanRadius(out decimal rbar, out decimal xbar, out decimal ybar, List<Shot> shots) {
 
             decimal xsum = 0;
             decimal ysum = 0;
             int shotCount = 0;
 
-            foreach(Shot shot in shots) {
+            foreach (Shot shot in shots) {
                 if (shot.miss == true) {
                     continue;
                 }
@@ -961,7 +1006,7 @@ namespace freETarget {
 
             decimal[] r = new decimal[shotCount];
             int k = 0;
-            for(int i=0; i< shots.Count; i++) {
+            for (int i = 0; i < shots.Count; i++) {
                 if (shots[i].miss == true) {
                     continue;
                 }
@@ -970,7 +1015,7 @@ namespace freETarget {
             }
 
             decimal rsum = 0;
-            foreach(decimal ri in r) {
+            foreach (decimal ri in r) {
                 rsum += ri;
             }
 
@@ -979,10 +1024,10 @@ namespace freETarget {
         }
 
         //computes group size (maxium distance between 2 shots), but measuring from the center of the shot, not outside
-        private decimal calculateMaxSpread(List<Shot> shots) { 
+        private decimal calculateMaxSpread(List<Shot> shots) {
             List<double> spreads = new List<double>();
-            for(int i = 0; i < shots.Count; i++) {
-                for(int j = 0; j < shots.Count; j++) {
+            for (int i = 0; i < shots.Count; i++) {
+                for (int j = 0; j < shots.Count; j++) {
                     double powX = Math.Pow((double)shots[i].getX() - (double)shots[j].getX(), 2);
                     double powY = Math.Pow((double)shots[i].getY() - (double)shots[j].getY(), 2);
                     double sqrt;
@@ -1019,7 +1064,7 @@ namespace freETarget {
             }
             targetRefresh();
 
-            if(calibrationX == 0 && calibrationY == 0 && calibrationAngle ==0) {
+            if (calibrationX == 0 && calibrationY == 0 && calibrationAngle == 0) {
                 btnCalibration.BackColor = this.BackColor;
             } else {
                 btnCalibration.BackColor = Settings.Default.targetColor;
@@ -1111,10 +1156,10 @@ namespace freETarget {
         private void tabControl1_DrawItem(object sender, DrawItemEventArgs e) {
             Color backC = tcSessionType.TabPages[e.Index].BackColor;
             Color foreC = tcSessionType.TabPages[e.Index].ForeColor;
-            if (tcSessionType.Enabled==false) {
+            if (tcSessionType.Enabled == false) {
                 int grayScale = (int)((backC.R * 0.3) + (backC.G * 0.59) + (backC.B * 0.11));
                 backC = Color.FromArgb(backC.A, grayScale, grayScale, grayScale);
-            } 
+            }
 
             e.Graphics.FillRectangle(new SolidBrush(backC), e.Bounds);
             Rectangle paddedBounds = e.Bounds;
@@ -1123,13 +1168,13 @@ namespace freETarget {
             if (tcSessionType.SelectedIndex == e.Index) {
                 sel = true;
             }
-           
+
             paddedBounds.Inflate(-3, -3);
 
             StringFormat format1h = new StringFormat(StringFormatFlags.DirectionVertical | StringFormatFlags.DirectionRightToLeft);
             Font f;
             if (sel) {
-                f = new Font(e.Font,FontStyle.Bold| FontStyle.Italic);
+                f = new Font(e.Font, FontStyle.Bold | FontStyle.Italic);
                 paddedBounds.X = 0;
             } else {
                 f = new Font(e.Font, FontStyle.Bold);
@@ -1230,7 +1275,7 @@ namespace freETarget {
 
         private void fillBreakdownChart(List<Shot> shotList) {
             int[] breakdown = new int[12];
-            foreach(Shot s in shotList) {
+            foreach (Shot s in shotList) {
                 if (s.score == 10) {
                     if (s.innerTen) {
                         breakdown[0]++;
@@ -1242,7 +1287,7 @@ namespace freETarget {
                 }
             }
 
-            for(int i = 0; i < chartBreakdown.Series[0].Points.Count; i++) {
+            for (int i = 0; i < chartBreakdown.Series[0].Points.Count; i++) {
                 DataPoint p = chartBreakdown.Series[0].Points[i];
                 p.SetValueY(breakdown[i]);
             }
@@ -1287,7 +1332,7 @@ namespace freETarget {
         }
 
         private List<Shot> getShots() {
-            if(currentStatus == Status.LOADED) {
+            if (currentStatus == Status.LOADED) {
                 return currentSession.LoadedShots;
             } else {
                 return currentSession.Shots;
@@ -1307,14 +1352,24 @@ namespace freETarget {
         }
 
         private void disconnect() {
-            try {
-                serialPort.Close();
-            }catch(IOException) {
-                MessageBox.Show("Error closing the serial port. Please try again.","Error disconnecting",MessageBoxButtons.OK,MessageBoxIcon.Error);
-                return;
+            if (Settings.Default.useWiFi) {
+                //                stm.Close();
+                //tcpclnt.Close();
+                tcpclnt.GetStream().Close();
+                stm.Close();
+                stm = null;
+                tcpclnt.Close();
+            } else {
+                try {
+                    serialPort.Close();
+                } catch (IOException) {
+                    MessageBox.Show("Error closing the serial port. Please try again.", "Error disconnecting", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
             }
+
             btnConnect.Text = "Connect";
-            displayMessage("Disconnected",false);
+            displayMessage("Disconnected", false);
             log("*********\nDisconnected.");
             currentStatus = Status.NOT_CONNECTED;
 
@@ -1351,14 +1406,14 @@ namespace freETarget {
         }
 
         public void loadSessionFromJournal(Session session) {
-            if(this.currentSession.id == session.id) {
-                displayMessage("Session "+ session.id + " already loaded", true);
+            if (this.currentSession.id == session.id) {
+                displayMessage("Session " + session.id + " already loaded", true);
                 return;
             }
             this.currentSession = session;
             this.currentStatus = Status.LOADED;
             this.currentSession.AllSeries.Clear();
-           
+
             trkZoom.Enabled = true;
             shotsList.Enabled = true;
             setTrkZoom(currentSession.getTarget());
@@ -1369,7 +1424,7 @@ namespace freETarget {
             imgListDirections.Images.Clear();
             gridTargets.Rows.Clear();
             clearBreakdownChart();
-           
+
 
             frmJournal journalForm = (frmJournal)Application.OpenForms["frmJournal"];
 
@@ -1451,6 +1506,95 @@ namespace freETarget {
                 tab.Text = ev.Name;
 
                 this.tcSessionType.Controls.Add(tab);
+            }
+        }
+
+        private void getShotTimer_Tick(object sender, EventArgs e) {
+            if ((tcpclnt.Connected) && (!getShotsBackgroundWorker.IsBusy)) {
+                getShotsBackgroundWorker.RunWorkerAsync();
+            }
+        }
+
+        private void getShotsBackgroundWorker_DoWork(object sender, DoWorkEventArgs e) {
+            if (stm == null) {
+                return;
+            }
+
+            if (!stm.DataAvailable) {
+                return;
+            }
+
+            byte[] myReadBuffer = new byte[1024];
+            StringBuilder myCompleteMessage = new StringBuilder();
+            int numberOfBytesRead = 0;
+            bool msgCompleteIncomplete = true;
+
+            while (msgCompleteIncomplete) {
+                do {
+                    numberOfBytesRead = stm.Read(myReadBuffer, 0, myReadBuffer.Length);
+                    myCompleteMessage.AppendFormat("{0}", Encoding.ASCII.GetString(myReadBuffer, 0, numberOfBytesRead));
+                    //first incoming text from target after port open is "freETarget VX.x" - use this to confirm connection
+                    string inBuf = myCompleteMessage.ToString();
+                    if (inBuf.Contains("freETarget") && currentStatus == Status.CONECTING) {
+                        var d = new SafeCallDelegate2(connectDone); //confirm connect
+                        this.Invoke(d, new object[] { inBuf.Trim() });
+                    }
+
+                    output.add(inBuf);
+                    log(inBuf, logFile);
+
+                    myCompleteMessage.AppendFormat("{0}", Encoding.ASCII.GetString(myReadBuffer, 0, numberOfBytesRead));
+
+                    if (myCompleteMessage.ToString().Contains('}')) {
+                        msgCompleteIncomplete = false;
+                    }
+                }
+                while (stm.DataAvailable);
+            }
+
+            string buf = myCompleteMessage.ToString();
+            string indata = buf.Replace("\n\r", Environment.NewLine.ToString()); ;
+
+            incomingJSON = myCompleteMessage.ToString();
+
+            //first incoming text from target after port open is "freETarget VX.x" - use this to confirm connection
+            if (incomingJSON.Contains("freETarget") && currentStatus == Status.CONECTING) {
+                var d = new SafeCallDelegate2(connectDone); //confirm connect
+                this.Invoke(d, new object[] { incomingJSON.Trim() });
+            }
+
+            Shot shot = parseJson(buf);
+
+            if (shot != null && shot.count >= 0) {
+                if (shot.miss == true) {
+                    if (Settings.Default.ignoreMiss == true) {
+                        //do nothing. ignore shot
+                    } else {
+                        currentSession.addShot(shot);
+
+                        displayMessage(buf, false);
+                        displayShotData(shot);
+                        //VirtualRO vro = new VirtualRO();
+                        //vro.speakShot(shot);
+                    }
+                } else {
+                    currentSession.addShot(shot);
+
+                    displayMessage(buf, false);
+                    displayShotData(shot);
+                    //VirtualRO vro = new VirtualRO();
+                    //vro.speakShot(shot);
+
+                    var d = new SafeCallDelegate3(targetRefresh); //draw shot
+                    this.Invoke(d);
+                }
+            }
+        }
+
+        private void getShotsBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e) {
+            if (incomingJSON.Trim() != "") {
+                //AddToTraceDisplay("From ESP8266: " + incomingJSON);
+                incomingJSON = "";
             }
         }
     }

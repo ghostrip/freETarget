@@ -60,6 +60,9 @@
             this.chkMiss = new System.Windows.Forms.CheckBox();
             this.chkLog = new System.Windows.Forms.CheckBox();
             this.tabPageHardware = new System.Windows.Forms.TabPage();
+            this.connectionTypeGroupBox = new System.Windows.Forms.GroupBox();
+            this.wiFiRadioButton = new System.Windows.Forms.RadioButton();
+            this.USBCableRadioButton = new System.Windows.Forms.RadioButton();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.lblStepTime = new System.Windows.Forms.Label();
             this.txtStepTime = new System.Windows.Forms.TextBox();
@@ -154,10 +157,13 @@
             this.txtNorthX = new System.Windows.Forms.TextBox();
             this.picTarget = new System.Windows.Forms.PictureBox();
             this.helpProvider = new System.Windows.Forms.HelpProvider();
+            this.ipAddressTextBox = new System.Windows.Forms.TextBox();
+            this.label38 = new System.Windows.Forms.Label();
             this.groupBox1.SuspendLayout();
             this.tabControl1.SuspendLayout();
             this.tabPageGeneral.SuspendLayout();
             this.tabPageHardware.SuspendLayout();
+            this.connectionTypeGroupBox.SuspendLayout();
             this.groupBox2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trkLEDbright)).BeginInit();
             this.tabActiveEvents.SuspendLayout();
@@ -501,6 +507,7 @@
             // 
             // tabPageHardware
             // 
+            this.tabPageHardware.Controls.Add(this.connectionTypeGroupBox);
             this.tabPageHardware.Controls.Add(this.groupBox2);
             this.tabPageHardware.Controls.Add(this.cmbName);
             this.tabPageHardware.Controls.Add(this.label22);
@@ -519,6 +526,43 @@
             this.tabPageHardware.TabIndex = 3;
             this.tabPageHardware.Text = "Hardware";
             this.tabPageHardware.UseVisualStyleBackColor = true;
+            // 
+            // connectionTypeGroupBox
+            // 
+            this.connectionTypeGroupBox.Controls.Add(this.label38);
+            this.connectionTypeGroupBox.Controls.Add(this.ipAddressTextBox);
+            this.connectionTypeGroupBox.Controls.Add(this.wiFiRadioButton);
+            this.connectionTypeGroupBox.Controls.Add(this.USBCableRadioButton);
+            this.connectionTypeGroupBox.Location = new System.Drawing.Point(16, 274);
+            this.connectionTypeGroupBox.Name = "connectionTypeGroupBox";
+            this.connectionTypeGroupBox.Size = new System.Drawing.Size(289, 44);
+            this.connectionTypeGroupBox.TabIndex = 25;
+            this.connectionTypeGroupBox.TabStop = false;
+            this.connectionTypeGroupBox.Text = "Connect using";
+            // 
+            // wiFiRadioButton
+            // 
+            this.wiFiRadioButton.AutoSize = true;
+            this.wiFiRadioButton.Location = new System.Drawing.Point(59, 16);
+            this.wiFiRadioButton.Name = "wiFiRadioButton";
+            this.wiFiRadioButton.Size = new System.Drawing.Size(46, 17);
+            this.wiFiRadioButton.TabIndex = 1;
+            this.wiFiRadioButton.TabStop = true;
+            this.wiFiRadioButton.Text = "WiFi";
+            this.wiFiRadioButton.UseVisualStyleBackColor = true;
+            this.wiFiRadioButton.CheckedChanged += new System.EventHandler(this.wiFiRadioButton_CheckedChanged);
+            // 
+            // USBCableRadioButton
+            // 
+            this.USBCableRadioButton.AutoSize = true;
+            this.USBCableRadioButton.Checked = true;
+            this.USBCableRadioButton.Location = new System.Drawing.Point(6, 16);
+            this.USBCableRadioButton.Name = "USBCableRadioButton";
+            this.USBCableRadioButton.Size = new System.Drawing.Size(47, 17);
+            this.USBCableRadioButton.TabIndex = 0;
+            this.USBCableRadioButton.TabStop = true;
+            this.USBCableRadioButton.Text = "USB";
+            this.USBCableRadioButton.UseVisualStyleBackColor = true;
             // 
             // groupBox2
             // 
@@ -678,7 +722,7 @@
             // label19
             // 
             this.label19.AutoSize = true;
-            this.label19.Location = new System.Drawing.Point(13, 273);
+            this.label19.Location = new System.Drawing.Point(19, 243);
             this.label19.Name = "label19";
             this.label19.Size = new System.Drawing.Size(62, 13);
             this.label19.TabIndex = 13;
@@ -689,7 +733,7 @@
             // 
             this.helpProvider.SetHelpString(this.txtCalibre, "Caliber of the projectile in tenths of milimiters. For example, the 4.5mm (.177) " +
         "pellet has the caliber of 45");
-            this.txtCalibre.Location = new System.Drawing.Point(109, 269);
+            this.txtCalibre.Location = new System.Drawing.Point(115, 239);
             this.txtCalibre.Name = "txtCalibre";
             this.helpProvider.SetShowHelp(this.txtCalibre, true);
             this.txtCalibre.Size = new System.Drawing.Size(190, 20);
@@ -1566,6 +1610,22 @@
             this.picTarget.TabIndex = 12;
             this.picTarget.TabStop = false;
             // 
+            // ipAddressTextBox
+            // 
+            this.ipAddressTextBox.Location = new System.Drawing.Point(183, 15);
+            this.ipAddressTextBox.Name = "ipAddressTextBox";
+            this.ipAddressTextBox.Size = new System.Drawing.Size(100, 20);
+            this.ipAddressTextBox.TabIndex = 2;
+            // 
+            // label38
+            // 
+            this.label38.AutoSize = true;
+            this.label38.Location = new System.Drawing.Point(116, 18);
+            this.label38.Name = "label38";
+            this.label38.Size = new System.Drawing.Size(61, 13);
+            this.label38.TabIndex = 3;
+            this.label38.Text = "IP Address:";
+            // 
             // frmSettings
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1591,6 +1651,8 @@
             this.tabPageGeneral.PerformLayout();
             this.tabPageHardware.ResumeLayout(false);
             this.tabPageHardware.PerformLayout();
+            this.connectionTypeGroupBox.ResumeLayout(false);
+            this.connectionTypeGroupBox.PerformLayout();
             this.groupBox2.ResumeLayout(false);
             this.groupBox2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trkLEDbright)).EndInit();
@@ -1738,5 +1800,10 @@
         public System.Windows.Forms.TextBox txtStepTime;
         public System.Windows.Forms.TextBox txtZOffset;
         private System.Windows.Forms.Label label37;
+        private System.Windows.Forms.GroupBox connectionTypeGroupBox;
+        private System.Windows.Forms.RadioButton USBCableRadioButton;
+        public System.Windows.Forms.RadioButton wiFiRadioButton;
+        private System.Windows.Forms.Label label38;
+        public System.Windows.Forms.TextBox ipAddressTextBox;
     }
 }

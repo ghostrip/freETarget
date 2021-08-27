@@ -217,7 +217,8 @@ namespace freETarget
             }
 
             cmbName.SelectedIndex = Properties.Settings.Default.targetName;
-
+            wiFiRadioButton.Checked = Properties.Settings.Default.useWiFi;
+            ipAddressTextBox.Text = Properties.Settings.Default.targetIPAddress;
         }
 
         private void loadTargetNames() {
@@ -844,6 +845,11 @@ namespace freETarget
                         break;
                 }
             }
+        }
+
+        private void wiFiRadioButton_CheckedChanged(object sender, EventArgs e)
+        {
+            ipAddressTextBox.Enabled = wiFiRadioButton.Checked;
         }
     }
 }
